@@ -1,17 +1,22 @@
 import pickle
+
+import keras
 import numpy as np
 import tensorflow as tf
-import keras
+from keras.layers import Activation, Conv2D, Dense, Flatten, Input
+from keras.models import Model, Sequential
+
 import falconn
-from keras.models import Sequential
-from keras.models import Model
-from keras.layers import Dense, Flatten, Conv2D, Input, Activation
+
 
 def load_mnist_model():
     inpt = Input(shape=(28, 28, 1))
-    l1 = Conv2D(64, (8, 8), strides=(2, 2), padding='same', activation='relu')(inpt)
-    l2 = Conv2D(128, (6, 6), strides=(2, 2), padding='same', activation='relu')(l1)
-    l3 = Conv2D(128, (5, 5), strides=(1, 1), padding='valid', activation='relu')(l2)
+    l1 = Conv2D(64, (8, 8), strides=(2, 2),
+                padding='same', activation='relu')(inpt)
+    l2 = Conv2D(128, (6, 6), strides=(2, 2),
+                padding='same', activation='relu')(l1)
+    l3 = Conv2D(128, (5, 5), strides=(1, 1),
+                padding='valid', activation='relu')(l2)
     flat = Flatten()(l3)
     l4 = Dense(10, activation=None)(flat)
     out = Activation('softmax')(l4)
@@ -23,8 +28,8 @@ def load_mnist_model():
     l4_rep = Model(inputs=inpt, outputs=l4)
 
     model.compile(loss=keras.losses.sparse_categorical_crossentropy,
-                optimizer=keras.optimizers.Adam(1e-3),
-                metrics=['accuracy'])
+                  optimizer=keras.optimizers.Adam(1e-3),
+                  metrics=['accuracy'])
 
     # model.fit(X_train, y_train,
     #           batch_size=128,
@@ -35,7 +40,7 @@ def load_mnist_model():
     # model.save_weights('keras_weights/mnist_cnn.h5')
 
     model.load_weights('keras_weights/mnist_cnn.h5')
-    
+
     return model, [l1_rep, l2_rep, l3_rep, l4_rep]
 
 
@@ -78,8 +83,8 @@ def find_acc(nn, y_Q, y_X):
     acc = np.mean(vote == y_Q)
     print(acc)
     return acc
-    
-    
+
+
 def find_nn_diff_class(Q, y_Q, X, y_X, k):
     target = np.zeros((len(Q), k), dtype=np.int32)
     axis = tuple(np.arange(1, X.ndim, dtype=np.int32))
@@ -100,8 +105,8 @@ def move_to_target(q, y_q, target, X_nm, y_X, k, n_steps=5):
     lo = 0
     adv = None
     for step in range(n_steps):
-        mid = (hi + lo)/2
-        x_new = mid*line + q
+        mid = (hi + lo) / 2
+        x_new = mid * line + q
         x_new = x_new / np.sqrt(np.sum(x_new**2))
         # new_neighbors = np.argsort(np.sum((X - x_new)**2, axis=axis))[:k]
         new_neighbors = np.argsort(compute_cosine(X_nm, x_new))[:k]
@@ -114,7 +119,7 @@ def move_to_target(q, y_q, target, X_nm, y_X, k, n_steps=5):
     return adv
 
 
-def move_to_target_dknn(q, y_q, target, X, y_X, k, sess, rep, x_ph, query, 
+def move_to_target_dknn(q, y_q, target, X, y_X, k, sess, rep, x_ph, query,
                         n_steps=5):
     """
     Move in straight line to target with binary search.
@@ -126,8 +131,8 @@ def move_to_target_dknn(q, y_q, target, X, y_X, k, sess, rep, x_ph, query,
     lo = 0
     adv = None
     for step in range(n_steps):
-        mid = (hi + lo)/2
-        x_new = mid*line + q
+        mid = (hi + lo) / 2
+        x_new = mid * line + q
         # x_new = x_new / np.sqrt(np.sum(x_new**2))
         # new_neighbors = np.argsort(np.sum((X - x_new)**2, axis=axis))[:k]
         # new_neighbors = np.argsort(compute_cosine(X, x_new))[:k]
@@ -165,65 +170,65 @@ def setup_lsh(X, num_probes=100):
     params_cp.num_setup_threads = 0
     params_cp.storage_hash_table = falconn.StorageHashTable.BitPackedFlatHashTable
     falconn.compute_number_of_hash_functions(16, params_cp)
-    
+
     table = falconn.LSHIndex(params_cp)
     table.setup(X)
     query_object = table.construct_query_object()
     query_object.set_num_probes(num_probes)
-    
+
     return query_object
 
 
 def get_rep_nm(sess, X, rep_ts):
     x = tf.placeholder(tf.float32, (None, 28, 28, 1))
-    
+
     rep = rep_ts(x)
     out = np.zeros((len(X), ) + tuple(rep.shape[1:]), dtype=np.float32)
-    for i in range(int(np.ceil(len(X)/1000))):
-        out[i*1000 : (i + 1)*1000] = sess.run(
-            rep, feed_dict={x: X[i*1000 : (i + 1)*1000]})
-    
+    for i in range(int(np.ceil(len(X) / 1000))):
+        out[i * 1000: (i + 1) * 1000] = sess.run(
+            rep, feed_dict={x: X[i * 1000: (i + 1) * 1000]})
+
     out = out.reshape(len(out), -1)
-    out = out/np.sqrt(np.sum(out**2, 1, keepdims=True))
+    out = out / np.sqrt(np.sum(out**2, 1, keepdims=True))
     return out
 
 
 def get_all_rep(sess, X, rep_ts):
     x = tf.placeholder(tf.float32, (None, 28, 28, 1))
-    
+
     [l1_rep, l2_rep, l3_rep, l4_rep] = rep_ts
     l1 = l1_rep(x)
     out_l1 = np.zeros((len(X), ) + tuple(l1.shape[1:]), dtype=np.float32)
-    for i in range(int(np.ceil(len(X)/1000))):
-        out_l1[i*1000 : (i + 1)*1000] = sess.run(
-            l1, feed_dict={x: X[i*1000 : (i + 1)*1000]})
-        
+    for i in range(int(np.ceil(len(X) / 1000))):
+        out_l1[i * 1000: (i + 1) * 1000] = sess.run(
+            l1, feed_dict={x: X[i * 1000: (i + 1) * 1000]})
+
     l2 = l2_rep(x)
     out_l2 = np.zeros((len(X), ) + tuple(l2.shape[1:]), dtype=np.float32)
-    for i in range(int(np.ceil(len(X)/1000))):
-        out_l2[i*1000 : (i + 1)*1000] = sess.run(
-            l2, feed_dict={x: X[i*1000 : (i + 1)*1000]})
-        
+    for i in range(int(np.ceil(len(X) / 1000))):
+        out_l2[i * 1000: (i + 1) * 1000] = sess.run(
+            l2, feed_dict={x: X[i * 1000: (i + 1) * 1000]})
+
     l3 = l3_rep(x)
     out_l3 = np.zeros((len(X), ) + tuple(l3.shape[1:]), dtype=np.float32)
-    for i in range(int(np.ceil(len(X)/1000))):
-        out_l3[i*1000 : (i + 1)*1000] = sess.run(
-            l3, feed_dict={x: X[i*1000 : (i + 1)*1000]})
-        
+    for i in range(int(np.ceil(len(X) / 1000))):
+        out_l3[i * 1000: (i + 1) * 1000] = sess.run(
+            l3, feed_dict={x: X[i * 1000: (i + 1) * 1000]})
+
     l4 = l4_rep(x)
     out_l4 = np.zeros((len(X), ) + tuple(l4.shape[1:]), dtype=np.float32)
-    for i in range(int(np.ceil(len(X)/1000))):
-        out_l4[i*1000 : (i + 1)*1000] = sess.run(
-            l4, feed_dict={x: X[i*1000 : (i + 1)*1000]})
-        
+    for i in range(int(np.ceil(len(X) / 1000))):
+        out_l4[i * 1000: (i + 1) * 1000] = sess.run(
+            l4, feed_dict={x: X[i * 1000: (i + 1) * 1000]})
+
     return [out_l1, out_l2, out_l3, out_l4]
 
 
 def get_all_rep_nm(sess, X, rep_ts):
-    
+
     rep = get_all_rep(sess, X, rep_ts)
     rep_nm = [r.reshape(len(r), -1) for r in rep]
-    rep_nm = [r/np.sqrt(np.sum(r**2, 1, keepdims=True)) for r in rep_nm]
+    rep_nm = [r / np.sqrt(np.sum(r**2, 1, keepdims=True)) for r in rep_nm]
     return rep_nm
 
 
@@ -239,7 +244,7 @@ def dknn_classify(rep, query, y_train):
     """
     alphas: (n_layers, n_samples, n_label (number of mismatched nn for each class))
     """
-    
+
     alphas = []
     for l in range(4):
         nn = query_nn(query[l], rep[l], 75)
@@ -253,14 +258,14 @@ def dknn_classify(rep, query, y_train):
 
 
 def dknn_acc(A, rep, y_test, query, y_train):
-    
+
     _, sum_alphas = dknn_classify(rep, query, y_train)
-    
+
     p = np.zeros((len(rep[0]), 10))
     sum_A = np.sum(A, 0)
     for i, s in enumerate(sum_alphas):
         p[i] = np.array([np.sum(ss <= sum_A) for ss in s]) / len(sum_A)
-        
+
     acc = np.mean(np.argmax(p, 1) == y_test)
     return p, acc
 

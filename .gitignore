@@ -16,6 +16,8 @@ model/
 *.log
 out*
 saved_samples/
+figures/
+dknn_l2_m500/
 
 # OS generated files #
 ######################
